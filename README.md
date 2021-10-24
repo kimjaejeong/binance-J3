@@ -5,6 +5,15 @@ binance API를 활용한 기능 구현
 
 
 
+#### 설치 프로그램
+
+- git
+  - https://git-scm.com/
+- typora
+  - https://typora.io/
+
+
+
 #### git 사용법
 
 ```python
@@ -17,6 +26,8 @@ git add . # 변경된 working directory 파일을 Staging Area로 보내주는 �
 git commit -m # 파일 이력 남기기
 git push # git directory에 저장
 ```
+
+
 
 
 
