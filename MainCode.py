@@ -44,6 +44,7 @@ class MainWindow(QMainWindow, form_class):
         
 
         self.TradeButton.clicked.connect(self.TradeStart)
+        self.TradeButton_2.clicked.connect(self.Sorting)
         self.CoinListWidget.itemSelectionChanged.connect(self.CoinSearch)
 
         
@@ -143,14 +144,36 @@ class MainWindow(QMainWindow, form_class):
                 bol_m = (bol_h+bol_l)/2
                 price = float(binance.fetch_ticker(markets)['last'])
                 gap = 100.
-                if price > float(bol_m[499]):
-                    gap = price - float(bol_l[499])
+                if price > float(bol_m[len(bol_m)-1]):
+                    gap = price - float(bol_l[len(bol_m)-1])
                 else:
-                    gap = price - float(bol_h[499])
-                    
+                    gap = price - float(bol_h[len(bol_m)-1])
                 print("gap : ",gap)
                 if gap < 0:
-                    self.CoinListWidget.addItem(markets)               
+                    self.CoinListWidget.addItem(markets)           
+        return
+    
+    def Sorting(self):
+        items = []
+        for x in range(self.CoinListWidget.count()-1):
+            items.append(self.CoinListWidget.item(x).text())
+        for item in items:
+            priceData = binance.fetch_ohlcv(item,'15m')
+            df = pd.DataFrame(priceData, columns=['datetime','open','high','low','close','volume'])
+            #조건식 설정
+            bol_h = ta.volatility.bollinger_hband(df['close'])
+            bol_l = ta.volatility.bollinger_lband(df['close'])
+            bol_m = (bol_h+bol_l)/2
+            price = float(binance.fetch_ticker(item)['last'])
+            gap = 100.
+            if price > float(bol_m[len(bol_m)-1]):
+                gap = price - float(bol_l[len(bol_m)-1])
+            else:
+                gap = price - float(bol_h[len(bol_m)-1])
+            print("15m gap : ",gap)
+            if gap < 0:
+                self.CoinListWidget_2.addItem(item)
+                
         return
 
     def TradeStart(self):
@@ -164,7 +187,7 @@ class MainWindow(QMainWindow, form_class):
 
         btc = binance.fetch_ticker(symbol)
         print("현재가 : ", btc['last'])
-
+        # print(binance.fetch_ticker('BTCUSDT'))
         self.Searching()
         # self.openPosition(symbol,btc['last'],amount,'long')
         # self.closePosition("BTCUSDT")
