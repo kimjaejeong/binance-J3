@@ -17,12 +17,14 @@ from PyQt5.QtWidgets import *
 import sys
 from PyQt5 import uic
 
+
 form_class = uic.loadUiType("MainGUI.ui")[0]
 
 with open("api.txt") as f:
     lines = f.readlines()
     api_key = lines[0].strip()
     secret = lines[1].strip()
+    
 binance = ccxt.binance(config={'apiKey':api_key,'secret':secret,'enableRateLimit':True,'options':{'defaultType': 'future'}})
 balance = binance.fetch_balance(params={"type":"future"})
 markets = binance.load_markets()
@@ -35,19 +37,16 @@ class MainWindow(QMainWindow, form_class):
         
         self.fig = plt.Figure()
         self.canvas = FigureCanvas(self.fig)
-        layout = QVBoxLayout()
+        layout = self.ChartLayout
         layout.addWidget(self.canvas)
         self.layout = layout
 
         
 
         self.TradeButton.clicked.connect(self.TradeStart)
+        self.CoinListWidget.itemSelectionChanged.connect(self.CoinSearch)
 
-# markets = binance.load_markets()
-# pprint.pprint(btc)
-# for markets in markets.keys():
-#     if markets.endswith("USDT"):
-#         print(markets)
+        
     def openPosition(self,name,marketprice,amount,ordertype):
         usd = float(balance['USDT']['free'])
         usd = 1000 #test (지갑잔고)
@@ -106,8 +105,7 @@ class MainWindow(QMainWindow, form_class):
     
     def CoinSearch(self):
         self.fig.clear()
-        self.canvas.close()
-        priceData = binance.fetch_ohlcv(str(self.CoinComboBox.currentText()),str(self.TimeComboBox.currentText()))
+        priceData = binance.fetch_ohlcv(str(self.CoinListWidget.currentItem().text()),str(self.TimeComboBox.currentText()))
         df = pd.DataFrame(priceData, columns=['datetime','open','high','low','close','volume'])
         df['datetime'] = pd.to_datetime(df['datetime'], unit='ms')
         df.set_index('datetime', inplace = True)
@@ -128,28 +126,48 @@ class MainWindow(QMainWindow, form_class):
         chart.plot(bol_m,c='g',label = 'Bolinger Mid')
         chart.plot(bol_l,c='b',label = 'Bolinger Low')
         
-        chart.set_title("Chart")
+        chart.set_title(str(self.CoinListWidget.currentItem().text())+', '+str(self.TimeComboBox.currentText()))
         chart.legend()
         
-        self.canvas.show()
-    
+        self.canvas.draw()
+        
+    def Searching(self):
+        markets = binance.load_markets()
+        for markets in markets.keys():
+            if markets.endswith("USDT"):
+                priceData = binance.fetch_ohlcv(markets,str(self.TimeComboBox.currentText()))
+                df = pd.DataFrame(priceData, columns=['datetime','open','high','low','close','volume'])
+                #조건식 설정
+                bol_h = ta.volatility.bollinger_hband(df['close'])
+                bol_l = ta.volatility.bollinger_lband(df['close'])
+                bol_m = (bol_h+bol_l)/2
+                price = float(binance.fetch_ticker(markets)['last'])
+                gap = 100.
+                if price > float(bol_m[499]):
+                    gap = price - float(bol_l[499])
+                else:
+                    gap = price - float(bol_h[499])
+                    
+                print("gap : ",gap)
+                if gap < 0:
+                    self.CoinListWidget.addItem(markets)               
+        return
+
     def TradeStart(self):
         
-            symbol = str(self.CoinComboBox.currentText())
-            market = binance.market(symbol)
+        symbol = str(self.CoinComboBox.currentText())
+        market = binance.market(symbol)
 
 
 
-            amount = float(self.AmountSpinBox.value()/100)
+        amount = float(self.AmountSpinBox.value()/100)
 
-            btc = binance.fetch_ticker(symbol)
-            print("현재가 : ", btc['last'])
+        btc = binance.fetch_ticker(symbol)
+        print("현재가 : ", btc['last'])
 
-
-
-            self.CoinSearch()
-            self.openPosition(symbol,btc['last'],amount,'long')
-            self.closePosition("BTCUSDT")
+        self.Searching()
+        # self.openPosition(symbol,btc['last'],amount,'long')
+        # self.closePosition("BTCUSDT")
     
     
     
