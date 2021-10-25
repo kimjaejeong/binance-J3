@@ -46,6 +46,7 @@ class MainWindow(QMainWindow, form_class):
         self.TradeButton.clicked.connect(self.TradeStart)
         self.TradeButton_2.clicked.connect(self.Sorting)
         self.CoinListWidget.itemSelectionChanged.connect(self.CoinSearch)
+        self.CoinListWidget_2.itemSelectionChanged.connect(self.CoinSearch15m)
 
         
     def openPosition(self,name,marketprice,amount,ordertype):
@@ -128,6 +129,35 @@ class MainWindow(QMainWindow, form_class):
         chart.plot(bol_l,c='b',label = 'Bolinger Low')
         
         chart.set_title(str(self.CoinListWidget.currentItem().text())+', '+str(self.TimeComboBox.currentText()))
+        chart.legend()
+        
+        self.canvas.draw()
+        
+        
+    def CoinSearch15m(self):
+        self.fig.clear()
+        priceData = binance.fetch_ohlcv(str(self.CoinListWidget_2.currentItem().text()),'15m')
+        df = pd.DataFrame(priceData, columns=['datetime','open','high','low','close','volume'])
+        df['datetime'] = pd.to_datetime(df['datetime'], unit='ms')
+        df.set_index('datetime', inplace = True)
+        
+        #조건식 설정
+        
+        bol_h = ta.volatility.bollinger_hband(df['close'])
+        bol_l = ta.volatility.bollinger_lband(df['close'])
+        bol_m = (bol_h+bol_l)/2
+        
+        
+        chart = self.fig.add_subplot(111)
+        
+        
+        
+        chart.plot(df['close'],c='k')
+        chart.plot(bol_h,c='r',label = 'Bolinger High')
+        chart.plot(bol_m,c='g',label = 'Bolinger Mid')
+        chart.plot(bol_l,c='b',label = 'Bolinger Low')
+        
+        chart.set_title(str(self.CoinListWidget_2.currentItem().text())+', 15m')
         chart.legend()
         
         self.canvas.draw()
