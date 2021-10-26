@@ -16,6 +16,8 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import *
 import sys
 from PyQt5 import uic
+import win32con, win32api, win32gui
+import threading, schedule, time
 
 
 form_class = uic.loadUiType("MainGUI.ui")[0]
@@ -29,29 +31,48 @@ binance = ccxt.binance(config={'apiKey':api_key,'secret':secret,'enableRateLimit
 balance = binance.fetch_balance(params={"type":"future"})
 markets = binance.load_markets()
 
+
 class MainWindow(QMainWindow, form_class):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
         
-        
+        self.Trading = False
+        self.Calculating = False
         self.fig = plt.Figure()
         self.canvas = FigureCanvas(self.fig)
         layout = self.ChartLayout
         layout.addWidget(self.canvas)
         self.layout = layout
+        
+        self.kakao_opentalk_name = '코인알리미'
+        self.hwndMain = win32gui.FindWindow( None, self.kakao_opentalk_name)
+        self.hwndEdit = win32gui.FindWindowEx( self.hwndMain, None, "RICHEDIT50W", None)
+        self.hwndListControl = win32gui.FindWindowEx( self.hwndMain, None, "EVA_VH_ListControl_Dblclk", None)
 
         
-
+        self.TradeButton.setStyleSheet("background-color: rgb(0, 255, 0)")
+        self.StatusLabel.setStyleSheet("color: rgb(255, 85, 0)")
         self.TradeButton.clicked.connect(self.TradeStart)
         self.TradeButton_2.clicked.connect(self.Sorting)
         self.CoinListWidget.itemSelectionChanged.connect(self.CoinSearch)
         self.CoinListWidget_2.itemSelectionChanged.connect(self.CoinSearch15m)
 
-        
+    
+    def kakao_sendtext(self,text):
+        win32api.SendMessage(self.hwndEdit, win32con.WM_SETTEXT, 0, text)
+        self.SendReturn(self.hwndEdit)
+
+    # # 엔터
+    def SendReturn(self,hwnd):
+        win32api.PostMessage(hwnd, win32con.WM_KEYDOWN, win32con.VK_RETURN, 0)
+        time.sleep(0.5)
+        win32api.PostMessage(hwnd, win32con.WM_KEYUP, win32con.VK_RETURN, 0)       
+    
+
     def openPosition(self,name,marketprice,amount,ordertype):
         usd = float(balance['USDT']['free'])
-        usd = 1000 #test (지갑잔고)
+        usd = 1000 #test (지갑잔고 실제로는 없애야하는 부분)
         price = float(marketprice)
         lev = self.LeverageSpinBox.value()
         
@@ -163,6 +184,13 @@ class MainWindow(QMainWindow, form_class):
         self.canvas.draw()
         
     def Searching(self):
+        if self.Calculating:
+            return
+        self.Calculating = True
+        if self.Trading == False:
+            self.Calculating = False
+            return
+        self.CoinListWidget.clear()
         markets = binance.load_markets()
         for markets in markets.keys():
             if markets.endswith("USDT"):
@@ -172,7 +200,14 @@ class MainWindow(QMainWindow, form_class):
                 bol_h = ta.volatility.bollinger_hband(df['close'])
                 bol_l = ta.volatility.bollinger_lband(df['close'])
                 bol_m = (bol_h+bol_l)/2
-                price = float(binance.fetch_ticker(markets)['last'])
+                price = 0.
+                if  binance.fetch_ticker(markets)['last'] is None:
+                    self.Calculating = False
+                    print("none")
+                    return
+                else:
+                    price = float(binance.fetch_ticker(markets)['last'])
+                
                 gap = 100.
                 if price > float(bol_m[len(bol_m)-1]):
                     gap = price - float(bol_l[len(bol_m)-1])
@@ -181,10 +216,21 @@ class MainWindow(QMainWindow, form_class):
                 print("gap : ",gap)
                 if gap < 0:
                     self.CoinListWidget.addItem(markets)           
+        self.Calculating = False
         return
     
     def Sorting(self):
+        if self.Calculating:
+            return
+        self.Calculating = True
+        if self.Trading == False:
+            self.Calculating = False
+            return
+        self.CoinListWidget_2.clear()
         items = []
+        buysell = 'buy'
+        types = []
+        volumes = []
         for x in range(self.CoinListWidget.count()-1):
             items.append(self.CoinListWidget.item(x).text())
         for item in items:
@@ -196,33 +242,102 @@ class MainWindow(QMainWindow, form_class):
             bol_m = (bol_h+bol_l)/2
             price = float(binance.fetch_ticker(item)['last'])
             gap = 100.
+
+            volumeInc = float(df['volume'][len(bol_m)-1]) / float(df['volume'][len(bol_m)-2])
             if price > float(bol_m[len(bol_m)-1]):
                 gap = price - float(bol_l[len(bol_m)-1])
+                buysell = 'Short'
             else:
                 gap = price - float(bol_h[len(bol_m)-1])
+                buysell = 'Long'
             print("15m gap : ",gap)
+            print("volumeInc : ",volumeInc)
             if gap < 0:
-                self.CoinListWidget_2.addItem(item)
-                
+                if volumeInc > 1:
+                    item = QListWidgetItem(item)
+                    item.setBackground(QtGui.QColor('red'))
+                    self.CoinListWidget_2.addItem(item)
+                    types.append(buysell + '!!')
+                    volumes.append(round(volumeInc,1))
+                    
+                else:
+                    item = QListWidgetItem(item)
+                    item.setBackground(QtGui.QColor('white'))
+                    self.CoinListWidget_2.addItem(item)    
+                    types.append(buysell)
+                    volumes.append(round(volumeInc,1))
+                  
+        self.Calculating = False
+        for i in range(self.CoinListWidget_2.count()):
+            text = '탐지된 종목 : '+self.CoinListWidget_2.item(i).text() + ', '+ types[i]+", VL : "+str(volumes[i])
+            self.kakao_sendtext(text)
         return
 
     def TradeStart(self):
+        if self.Trading:
+            self.Trading = False
+            self.TradeButton.setText("조회 시작")
+            print("조회중지됨")
+            self.TradeButton.setStyleSheet("background-color: rgb(0, 255, 0)")
+            self.StatusLabel.setText("미조회중")
+            self.StatusLabel.setStyleSheet("color: rgb(255, 85, 0)")
+        else:
+            self.Trading = True
+            self.TradeButton.setText("조회 중지")
+            print("시작됨")
+            self.TradeButton.setStyleSheet("background-color: rgb(255, 85, 0)")
+            self.StatusLabel.setText("조회중")
+            self.StatusLabel.setStyleSheet("color: rgb(0, 0, 255)")
+            
+            # self.Searching_thread1 = threading.Timer(180,self.CoinSearching1)
+            # self.Searching_thread1.daemon=True
+            # self.Searching_thread1.start()
+            
+            # self.Searching_thread2 = threading.Timer(20,self.CoinSearching2)
+            # self.Searching_thread2.daemon=True
+            # self.Searching_thread2.start()
+            
         
-        symbol = str(self.CoinComboBox.currentText())
-        market = binance.market(symbol)
+        # symbol = str(self.CoinComboBox.currentText())
+        # market = binance.market(symbol)
 
 
 
-        amount = float(self.AmountSpinBox.value()/100)
+        # amount = float(self.AmountSpinBox.value()/100)
 
-        btc = binance.fetch_ticker(symbol)
-        print("현재가 : ", btc['last'])
+        # btc = binance.fetch_ticker(symbol)
+        # print("현재가 : ", btc['last'])
         # print(binance.fetch_ticker('BTCUSDT'))
         self.Searching()
         # self.openPosition(symbol,btc['last'],amount,'long')
         # self.closePosition("BTCUSDT")
     
     
+ 
+    # def CoinSearching1(self):
+    #     while self.Calculating:
+    #         time.sleep(1)
+        
+    #     print("searching1h")
+    #     self.Calculating = True
+    #     self.Searching()
+    #     time.sleep(60)
+    #     print("time passed")
+    #     self.Sorting()
+    #     time.sleep(10)
+    #     self.Calculating = False
+        
+ 
+    # def CoinSearching2(self):
+    #     time.sleep(2)
+    #     while self.Calculating:
+    #         time.sleep(1)
+        
+    #     self.Calculating = True
+    #     self.Sorting()
+    #     time.sleep(7)
+    #     self.Calculating = False
+
     
 
 

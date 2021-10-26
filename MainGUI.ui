@@ -118,7 +118,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>코인 조회</string>
+     <string>조회 시작</string>
     </property>
    </widget>
    <widget class="QComboBox" name="CoinComboBox">
@@ -269,6 +269,19 @@
     </property>
     <property name="text">
      <string>필터링</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="StatusLabel">
+    <property name="geometry">
+     <rect>
+      <x>940</x>
+      <y>10</y>
+      <width>71</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>미조회중</string>
     </property>
    </widget>
   </widget>
