@@ -268,9 +268,13 @@ class MainWindow(QMainWindow, form_class):
                     volumes.append(round(volumeInc,1))
                   
         self.Calculating = False
-        for i in range(self.CoinListWidget_2.count()):
-            text = '탐지된 종목 : '+self.CoinListWidget_2.item(i).text() + ', '+ types[i]+", VL : "+str(volumes[i])
-            self.kakao_sendtext(text)
+        total_text = ''
+        title = '탐지된 종목 소팅 순서'
+        for idx, data in enumerate(range(self.CoinListWidget_2.count())):
+            text = '\n' + str(idx + 1) + ": " + self.CoinListWidget_2.item(idx).text() + ', '+ types[idx]+", VL : "+str(volumes[idx])
+            total_text = total_text + text
+        kakao_text = title + '\n' + total_text
+        self.kakao_sendtext(kakao_text)
         return
 
     def TradeStart(self):
