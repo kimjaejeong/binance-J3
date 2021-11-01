@@ -32,6 +32,7 @@ balance = binance.fetch_balance(params={"type":"future"})
 markets = binance.load_markets()
 
 
+
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
@@ -116,15 +117,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
         if ordertype == "short":
             orderamount = orderamount*-1
-        
+
+        market_tmp = binance.market(name)
         print("주문 가능 수량 : ",orderamount)
         #################################################
+        resp = binance.fapiPrivate_post_leverage({
+            'symbol': market_tmp['id'],
+            'leverage': lev
+        })
+        print("resp: ", resp)
         #주문 orderamount만큼 생성
         if orderamount > 0:
-            # order = binance.create_market_buy_order(symbol=name,amount=orderamount)
+            order = binance.create_market_buy_order(symbol=name,amount=abs(orderamount))
             print("long으로 주문")
         else:
-            # order = binance.create_market_sell_order(symbol=name,amount=orderamount)
+            order = binance.create_market_sell_order(symbol=name,amount=abs(orderamount))
             print("short으로 주문")
         #################################################
         self.position()
@@ -151,10 +158,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         #################################################
         #주문 closeAmount만큼 생성
         if closeAmount > 0:
-            # order = binance.create_market_buy_order(symbol=name,amount=orderamount)
+            order = binance.create_market_buy_order(symbol=name,amount=abs(closeAmount))
             print("long으로 주문")
         else:
-            # order = binance.create_market_sell_order(symbol=name,amount=orderamount)
+            order = binance.create_market_sell_order(symbol=name,amount=abs(closeAmount))
             print("short으로 주문")
         
         #################################################
@@ -176,11 +183,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 item = "종목 :"+"|"+position["symbol"]+"|"+"  수량 :"+position["positionAmt"]+"  손익 :"+position["unrealizedProfit"]
                 if float(position["unrealizedProfit"]) >= 0:
                     item = QListWidgetItem(item)
-                    item.setBackground(QtGui.QColor('red'))
+                    item.setBackground(QtGui.QColor(199,84,80,100))
                     self.PositionListView.addItem(item)
                 else:
                     item = QListWidgetItem(item)
-                    item.setBackground(QtGui.QColor('blue'))
+                    item.setBackground(QtGui.QColor('skyblue'))
                     self.PositionListView.addItem(item)
         if self.PositionListView.count() == 0:
             print("보유 포지션 없음")
